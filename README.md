@@ -2,7 +2,7 @@
 
 IBM Bob을 고객 환경에 자체 호스팅(온프렘)할 때 **GPU가 몇 장 필요한지**, 그 GPU로 **개발자 몇 명이 쓸 수 있는지**를 빠르게 잡아 보는 셀러용 웹페이지입니다.
 
-**바로 보기:** https://bob-gpu-sizing.green261535.workers.dev/
+**바로 보기:** https://bob-gpu-sizing.joochan.workers.dev/
 
 > 1차 추정용 도구입니다. IBM 공식 견적이나 성능 보증이 아니며, 고객 제안서에 숫자를 넣기 전에는 고객 GPU에서 Bob 실제 작업으로 실측해 확인해야 합니다.
 
