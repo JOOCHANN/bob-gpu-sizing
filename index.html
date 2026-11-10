@@ -390,6 +390,8 @@ footer .in { display: flex; flex-direction: column; gap: 4px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
+/* the page must hide [hidden] itself: .view and .pop set display, which beats the UA rule outside the artifact host */
+[hidden] { display: none !important; }
 /* v3 guided flow */
 .setup { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 18px 20px; display: flex; flex-direction: column; gap: 18px; }
 .stepline { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 12px; align-items: start; }
