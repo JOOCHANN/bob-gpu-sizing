@@ -480,6 +480,17 @@ footer .in { display: flex; flex-direction: column; gap: 4px; }
 .mo-w { color: var(--warn); font-family: var(--font); font-weight: 600; }
 .mline .chip.warn { font-weight: 600; }
 .ctxwarn { color: var(--warn); font-weight: 600; }
+table.dl td.repo { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; }
+table.dl td.repo .t2 { font-family: var(--font); }
+.explain code { font-family: var(--mono); font-size: 12px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; }
+@media (max-width: 560px) {
+  table.dl thead { display: none; }
+  table.dl, table.dl tbody { display: block; }
+  table.dl tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+  table.dl tr:last-child { border-bottom: 0; }
+  table.data.compact.dl td { border: 0; padding: 0; }
+  table.data.compact.dl td.repo { grid-column: 1 / -1; margin-top: 3px; }
+}
 @media (max-width: 560px) {
   .msel-panel { position: relative; top: auto; width: 100%; max-height: 60vh; margin-top: 6px; box-shadow: none; }
   .mopts { grid-template-columns: minmax(0, 1fr); }
@@ -1257,23 +1268,37 @@ function modelLine(m) {
     (c ? `<span>${term("aa_coding", "코딩 지수")} <b>${pFmt(c, "aa_coding")}</b> <span class="t2">${rc.of}종 중 ${rc.rank}위</span></span>` : `<span class="t2">코딩 지수 없음</span>`) +
     (a ? `<span>${term("aa_agentic", "에이전트 지수")} <b>${pFmt(a, "aa_agentic")}</b></span>` : "");
 }
+// Download table: one row per compression variant. Repo names are the model_ids in the vLLM recipes.
+const VENDOR_ORG = { "NVIDIA": "nvidia", "Poolside": "poolside", "Moonshot AI": "moonshotai", "Z.ai": "zai-org", "Alibaba Qwen": "Qwen", "DeepSeek": "deepseek-ai", "MiniMax": "MiniMaxAI", "OpenAI": "openai", "Mistral AI": "mistralai" };
+const ORG_NAME = { nvidia: "NVIDIA", RedHatAI: "Red Hat AI", Inferact: "Inferact", gpustack: "GPUStack", amd: "AMD" };
+function dlTable(m) {
+  const bf = m.variants.find(v => v.key === "bf16");
+  const rows = m.variants.map(v => {
+    const repo = v.hf_id.split(" ")[0], org = repo.split("/")[0], online = v.key === "fp8_online";
+    const who = org === VENDOR_ORG[m.vendor] ? "모델 제조사" : (ORG_NAME[org] || org);
+    const size = online && bf ? bf.weights_gb : v.weights_gb;
+    return `<tr><td>${esc(v.label)}</td><td class="n">약 ${gb(size)}GB</td><td class="hm">${esc(who)}</td><td class="repo">${link(hfUrl(repo), repo)}${online ? `<div class="t2">BF16 파일을 받아 실행할 때 FP8로 바꿉니다</div>` : ""}</td></tr>`;
+  }).join("");
+  return `<div class="sec-title"><h3>모델 파일 받기</h3><span class="aside">Hugging Face</span></div>
+    <div class="tbl-wrap"><table class="data compact dl"><thead><tr><th>${term("quant", "압축 방식")}</th><th class="n">크기</th><th class="hm">올린 곳</th><th>저장소</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="explain">저장소 이름은 vLLM 레시피에 적힌 것과 같습니다. 엔지니어는 <code>hf download 저장소이름</code> 명령으로 받을 수 있고, 인터넷이 막힌 환경이라면 밖에서 받아 옮겨야 합니다. 모델에 따라 Hugging Face 로그인과 이용 약관 동의가 필요할 수 있습니다.</p>`;
+}
 function modelInfo(m, where) {
   const vh = Object.entries(m.recipe.verified_hardware || {});
   const ok = vh.filter(([, s]) => s === "verified").map(([k]) => k.toUpperCase().replace(/_/g, " "));
-  const hf = hfUrl(m.variants[0].hf_id);
-  return fold("mi-" + where, "모델 정보 더 보기", "출시, 라이선스, 성능, 검증 GPU", `<div class="mcard">
+  return fold("mi-" + where, "모델 정보 더 보기", "출시, 라이선스, 성능, 모델 파일 받기", `<div class="mcard">
     <div class="msub">${esc(m.name)} · ${esc(m.vendor)} · 출시 ${esc(m.release)} · 라이선스 ${esc(m.license)}</div>
     <div class="chips">${ibmChip(m)}${confChip(m)}${qm("conf")}</div>
     <p class="explain">${esc(IBM_HELP[m.ibm])}</p>
     <dl class="kv-list">
       <dt>${term("ctx", "작업 규모 한도")}</dt><dd>기본 <span class="num">${kfmt(m.ctx_serving)}</span> 토큰${m.ctx > m.ctx_serving ? ` (최대 ${kfmt(m.ctx)})` : ""} · Bob에서는 작업당 최대 <span class="num">${kfmt(Math.min(m.ctx_serving, BOB_CTX))}</span>${bobShort(m) ? ` <span class="ctxwarn">Bob 최대(${kfmt(BOB_CTX)})보다 짧음</span>` : ""}</dd>
       <dt>${term("verified", "검증된 GPU")}</dt><dd>${ok.length ? esc(ok.join(", ")) : "검증 기록 없음"}</dd>
-      <dt>압축 방식</dt><dd>${m.variants.map(v => `${esc(v.label)} ${gb(v.weights_gb)}GB`).join(" · ")}</dd>
     </dl>
+    ${dlTable(m)}
     <div class="sec-title"><h3>성능</h3><span class="aside">${term("perfkind", "측정 출처")}</span></div>
     ${perfMini(m)}
     ${fold("arch-" + where, "모델 구조", "층 구성, 전문가 수, 어텐션 방식", `<div class="arch">${esc(m.arch)}</div>`, { slim: true })}
-    <div class="links">${link(m.recipe.url, "vLLM 레시피")}${hf ? link(hf, "Hugging Face") : ""}${link(SRC["bob-models"].url, "Bob 지원 모델")}${link(SRC["bob-ctx"].url, "Bob 컨텍스트 한도")}<a href="#method" data-act="model-prov" data-mid="${esc(m.id)}">값별 출처</a></div>
+    <div class="links">${link(m.recipe.url, "vLLM 레시피")}${link(SRC["bob-models"].url, "Bob 지원 모델")}${link(SRC["bob-ctx"].url, "Bob 컨텍스트 한도")}<a href="#method" data-act="model-prov" data-mid="${esc(m.id)}">값별 출처</a></div>
   </div>`, { slim: true });
 }
 
