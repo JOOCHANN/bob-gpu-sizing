@@ -7,6 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+<script>
+(function () { try { var t = localStorage.getItem("bob-theme"); if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t); } catch (e) { /* storage blocked: follow the OS */ } })();
+</script>
 <style>
 :root {
   /* Layout: 핵심 답을 먼저 크게, 자세한 내용은 접힌 칸 안에. 맨 위 공유 조건, 아래 왼쪽 선택과 오른쪽 결과 */
@@ -521,6 +524,15 @@ table.dl td.repo .t2 { font-family: var(--font); }
 }
 
 .chip::before { content: none; }
+.top .in { position: relative; }
+.top .theme-sw { position: absolute; top: 0; right: 0; z-index: 1; }
+@media (max-width: 560px) { .theme-sw button span { display: none; } .theme-sw button { padding: 0 10px; } .top .brand .eyebrow, .top .brand h1 { padding-right: 84px; } }
+.theme-sw { display: inline-flex; border: 1px solid var(--line-2); border-radius: 999px; overflow: hidden; background: var(--surface); }
+.theme-sw button { border: 0; background: transparent; padding: 0 11px; min-height: 32px; font-size: 12.5px; color: var(--ink-2); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+.theme-sw button + button { border-left: 1px solid var(--line); }
+.theme-sw button:hover { color: var(--ink); background: var(--surface-2); }
+.theme-sw button[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.theme-sw svg { width: 14px; height: 14px; flex: none; }
 .note .ico { display: none; }
 .note { border-left: 3px solid var(--line-2); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
 .note.warn { border-left-color: var(--warn); }
@@ -531,6 +543,7 @@ table.dl td.repo .t2 { font-family: var(--font); }
 <body>
 <header class="top band">
   <div class="in">
+    <div class="theme-sw" role="group" aria-label="화면 색"><button type="button" data-theme-set="light" aria-pressed="false" aria-label="라이트 화면"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.6M8 12.9v1.6M1.5 8h1.6M12.9 8h1.6M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M3.4 12.6l1.1-1.1M11.5 4.5l1.1-1.1"/></svg><span>라이트</span></button><button type="button" data-theme-set="dark" aria-pressed="false" aria-label="다크 화면"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M13.2 10.1A5.6 5.6 0 0 1 5.9 2.8a5.6 5.6 0 1 0 7.3 7.3z"/></svg><span>다크</span></button></div>
     <div class="brand">
       <span class="eyebrow">IBM 내부 참고용 · Bob 자체 호스팅</span>
       <h1>온프렘 GPU 산정기</h1>
@@ -1946,6 +1959,22 @@ $("asof").textContent = D.asof;
 E.opt.derate = S.cond.derate;
 setView(location.hash.slice(1) || "need");
 
+})();
+</script>
+<script>
+(function () {
+  var root = document.documentElement, mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  function current() { var t = root.getAttribute("data-theme"); return t === "light" || t === "dark" ? t : (mq && mq.matches ? "dark" : "light"); }
+  function sync() { var c = current(); document.querySelectorAll("[data-theme-set]").forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-theme-set") === c)); }); }
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest && ev.target.closest("[data-theme-set]"); if (!b) return;
+    var t = b.getAttribute("data-theme-set"); root.setAttribute("data-theme", t);
+    try { localStorage.setItem("bob-theme", t); } catch (e) { /* not kept, still applied for this visit */ }
+    sync();
+  });
+  if (mq && mq.addEventListener) mq.addEventListener("change", sync);
+  if (window.MutationObserver) new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  sync();
 })();
 </script>
 
