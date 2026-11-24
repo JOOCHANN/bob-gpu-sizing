@@ -533,6 +533,45 @@ table.dl td.repo .t2 { font-family: var(--font); }
 .theme-sw button:hover { color: var(--ink); background: var(--surface-2); }
 .theme-sw button[aria-pressed="true"] { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
 .theme-sw svg { width: 14px; height: 14px; flex: none; }
+.xport { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-left: auto; }
+.xport .xl { font-size: 12.5px; color: var(--muted); margin-right: 2px; }
+.xport button[disabled] { opacity: .6; cursor: progress; }
+#print-report { display: none; }
+.pr { color: #131720; font-family: var(--font); font-size: 9.5pt; line-height: 1.45; }
+.pr h1 { font-size: 20pt; margin: 2pt 0; color: #131720; }
+.pr h2 { font-size: 11.5pt; margin: 12pt 0 5pt; color: #2453c9; break-after: avoid; }
+.pr .pr-eye { font-size: 8.5pt; color: #687284; }
+.pr .pr-sub { font-size: 12pt; color: #2453c9; margin-bottom: 10pt; }
+.pr .pr-lead { border-left: 3pt solid #2453c9; background: #f4f6fb; padding: 7pt 10pt; margin-bottom: 10pt; break-inside: avoid; }
+.pr .pr-lead p { margin: 0 0 3pt; color: #485164; }
+.pr .pr-lead p.l1 { font-size: 12.5pt; font-weight: 700; color: #131720; }
+.pr-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8pt; margin-bottom: 4pt; break-inside: avoid; }
+.pr-kpi { border: .75pt solid #dbe0e7; border-radius: 4pt; padding: 6pt 8pt; }
+.pr-kl { font-size: 8.5pt; color: #687284; }
+.pr-kv { font-size: 18pt; font-weight: 700; color: #131720; }
+.pr-kv small { font-size: 9pt; font-weight: 400; color: #687284; margin-left: 3pt; }
+.pr-kc { font-size: 8pt; color: #687284; }
+.pr table { width: 100%; border-collapse: collapse; }
+.pr-conds th { text-align: left; font-weight: 400; color: #687284; width: 14%; }
+.pr-conds td { width: 36%; }
+.pr-conds th, .pr-conds td { border-bottom: .5pt solid #dbe0e7; padding: 3pt 5pt; font-size: 9pt; vertical-align: top; }
+.pr-t { table-layout: fixed; }
+.pr-t th, .pr-t td { overflow-wrap: anywhere; word-break: keep-all; }
+.pr-t th { background: #e6ecfa; font-weight: 700; text-align: left; font-size: 8.5pt; padding: 4pt 5pt; border-bottom: .75pt solid #2453c9; vertical-align: bottom; color: #131720; }
+.pr-t td { font-size: 8.5pt; padding: 3pt 5pt; border-bottom: .5pt solid #dbe0e7; vertical-align: top; color: #131720; }
+.pr-t .n { text-align: right; font-variant-numeric: tabular-nums; }
+.pr-t tr { break-inside: avoid; }
+.pr-t tbody tr:nth-child(even) td { background: #f7f8fa; }
+.pr-note { font-size: 8pt; color: #687284; margin-top: 3pt; }
+.pr-notes { margin: 0; padding-left: 14pt; }
+.pr-notes li { margin-bottom: 2pt; font-size: 9pt; }
+@media print {
+  @page { size: A4 landscape; margin: 11mm 12mm; }
+  html.printing body > *:not(#print-report) { display: none !important; }
+  html.printing body::before { display: none !important; }
+  html.printing, html.printing body { background: #fff !important; }
+  html.printing #print-report { display: block; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
 .note .ico { display: none; }
 .note { border-left: 3px solid var(--line-2); border-radius: 0 var(--r-sm) var(--r-sm) 0; }
 .note.warn { border-left-color: var(--warn); }
@@ -1354,28 +1393,37 @@ function modelInfo(m, where) {
 // Main table shows the common NVIDIA data-center GPUs; the rest sit behind "다른 GPU 보기".
 const MAIN_GPUS = ["h100", "h200", "b200", "b300"];
 const officialNote = `<div class="note"><span class="ico">!</span><div><b>IBM 공식 지원 모델입니다.</b> IBM이 낸 공식 프로파일(권장 구성과 동시 요청 범위)을 먼저 확인하고, 이 페이지는 다른 인원이나 GPU 조합을 볼 때 참고하세요.</div></div>`;
-function renderMain() {
+// GPU-count view: numbers and sentences shared by the screen and the file export (html=false gives plain text).
+function mainModel() {
   const m = M[S.main.mid], c = S.cond, T = target(), mode = S.main.qmode;
   const ctxEff = Math.min(c.ctx, m.ctx_serving);
   const rows = GPU_ORDER.map(gid => ({ g: G[gid], p: planFor(m, G[gid], mode) }));
   const byId = id => rows.find(r => r.g.id === id);
   const can = r => r && r.p.sup !== "N" && r.p.req && r.p.req.n;
-  const devsAt = r => fmt(devsOf(eff(r.p.req.layout.sla_sessions)));
-  const gpuTxt = r => `${short(r.g)} ${r.p.req.n}장(${placeTxt(r.p.req)})`;
   const leadGpus = ["h200", "b200"].map(byId).filter(can);
-  const precs = [...new Set(leadGpus.map(r => shortPrec(r.p.v)))], precTxt = precs.length === 1 ? `(${esc(precs[0])})` : "";
-  const lead = leadGpus.length
-    ? `${esc(mshort(m))}${precTxt}로 개발자 ${fmt(c.devs)}명이 쓰려면, 지금 가정으로는 ${leadGpus.map(r => `<em>${esc(short(r.g))} ${r.p.req.n}장</em>(${placeTxt(r.p.req)})`).join(" 또는 ")} 구성을 검토할 수 있습니다.`
-    : `${esc(mshort(m))}로는 H200이나 B200 64장 안에서 개발자 ${fmt(c.devs)}명을 받기 어렵습니다. 아래 표에서 다른 GPU를 확인하세요.`;
-  // sensitivity: same GPU, the other planning ratio (25% <-> 40%)
-  let alt = "";
+  // sensitivity: same GPU, the other peak ratio (25% <-> 40%)
+  const ar = altRatio(); let altQ = null;
   if (leadGpus.length) {
-    const r0 = leadGpus[0], ar = altRatio(), Ta = Math.ceil(c.devs * ar);
+    const r0 = leadGpus[0];
     E.opt.attnDP = c.dp && dpUse(m) !== "none"; E.opt.derate = c.derate;
-    const q = E.requiredGpus(m, r0.p.v, r0.g, Ta, ctxEff, c.kv, c.tps);
-    alt = q.n ? ` 피크 동시 사용률을 ${Math.round(ar * 100)}%로 보면 ${esc(short(r0.g))} ${q.n}장(${placeTxt(q)})${q.n === r0.p.req.n ? "으로 같습니다" : "이면 됩니다"}.` : "";
+    altQ = E.requiredGpus(m, r0.p.v, r0.g, Math.ceil(c.devs * ar), ctxEff, c.kv, c.tps);
   }
-  const sub = `가정: 작업 ${kfmt(ctxEff)}, 요청당 초당 ${c.tps}토큰, 피크 동시 사용률 ${pct()}%(동시 요청 ${fmt(T)}건).${alt}`;
+  const text = html => {
+    const e = html ? esc : (x => String(x)), em = x => (html ? `<em>${x}</em>` : x);
+    const precs = [...new Set(leadGpus.map(r => shortPrec(r.p.v)))], precTxt = precs.length === 1 ? `(${e(precs[0])})` : "";
+    const lead = leadGpus.length
+      ? `${e(mshort(m))}${precTxt}로 개발자 ${fmt(c.devs)}명이 쓰려면, 지금 가정으로는 ${leadGpus.map(r => `${em(`${e(short(r.g))} ${r.p.req.n}장`)}(${placeTxt(r.p.req)})`).join(" 또는 ")} 구성을 검토할 수 있습니다.`
+      : `${e(mshort(m))}로는 H200이나 B200 64장 안에서 개발자 ${fmt(c.devs)}명을 받기 어렵습니다. ${html ? "아래 표에서" : "GPU별 표에서"} 다른 GPU를 확인하세요.`;
+    const r0 = leadGpus[0];
+    const alt = altQ && altQ.n ? ` 피크 동시 사용률을 ${Math.round(ar * 100)}%로 보면 ${e(short(r0.g))} ${altQ.n}장(${placeTxt(altQ)})${altQ.n === r0.p.req.n ? "으로 같습니다" : "이면 됩니다"}.` : "";
+    const sub = `가정: 작업 ${kfmt(ctxEff)}, 요청당 초당 ${c.tps}토큰, 피크 동시 사용률 ${pct()}%(동시 요청 ${fmt(T)}건).${alt}`;
+    return { lead, sub };
+  };
+  return { m, c, T, mode, ctxEff, rows, byId, leadGpus, text };
+}
+function renderMain() {
+  const mm = mainModel(), { m, c, T, ctxEff, rows, byId } = mm, { lead, sub } = mm.text(true);
+  const devsAt = r => fmt(devsOf(eff(r.p.req.layout.sla_sessions)));
   const rowHtml = ({ g, p }) => {
     if (p.sup === "N") return `<tr class="dim"><td><span class="t1">${esc(short(g))}</span> <span class="t2">${g.mem_gb}GB</span></td><td colspan="3" class="explain">이 GPU에서 돌릴 수 있는 압축 형식이 없습니다</td></tr>`;
     const q = p.req, n = q.n, L = q.layout;
@@ -1413,7 +1461,7 @@ function renderMain() {
       ${fold("gpu-more", `다른 GPU ${otherRows.length}종 보기`, otherRows.map(r => short(r.g)).join(", "), `
         <p class="explain">위 표에는 많이 쓰는 NVIDIA 데이터센터 GPU만 보여 줍니다. 아래 GPU는 고객이 이미 갖고 있을 때 참고하고, AMD GPU는 Bob 지원 범위를 따로 확인하세요.</p>
         <div class="tbl-wrap"><table class="data gtable">${head}<tbody>${otherRows.map(rowHtml).join("")}</tbody></table></div>`)}
-      <div class="btns"><span class="explain">행을 누르면 그 구성의 자세한 계산과 근거가 나옵니다.</span><button type="button" class="btn sm" id="main-copy">표 요약 복사</button></div><div id="main-copyhost"></div>
+      <div class="btns"><span class="explain">행을 누르면 그 구성의 자세한 계산과 근거가 나옵니다.</span><button type="button" class="btn sm" id="main-copy">표 요약 복사</button>${exportBar()}</div><div id="main-copyhost"></div>
       <p class="explain">장 수는 이 모델을 실제로 돌리는 GPU 수입니다. 서버를 8장짜리로 사면 '꽉 채우면' 장 수만큼 구매하게 됩니다. 에어갭 설치는 안전 검사용 가드레일 모델(gpt-oss-20b)을 함께 두도록 안내하니, GPU 1장 정도를 따로 잡아 두세요. ${link(SRC["bob-models"].url, "Bob 지원 모델 문서")}</p>
     </div>`;
   $("main-copy").onclick = () => {
@@ -1562,7 +1610,7 @@ function derateFold() {
     <p class="explain">imec 값은 실제 개발 과제를 풀며 동시에 돌린 <b>에이전트 수</b>입니다. 준비·평가 단계나 도구 대기 중인 에이전트는 요청을 보내지 않으므로, 엔드포인트가 실제로 동시에 처리한 요청은 이보다 적을 수 있습니다(원문 설명). GLM과 Kimi는 에이전트당 출력이 초당 20토큰보다 낮아 이 계산기의 속도 기준과 바로 비교할 수 없습니다. imec는 투기적 디코딩(MTP, EAGLE)을 켰고 이 계산기는 끈 상태라 조건도 다릅니다. 원문에 작업 길이가 없어 이론값은 64K와 128K로 계산했습니다(요청당 초당 20토큰 기준). ${link(SRC["imec-gpu-selfhost"].url, "imec 원문")}</p>`);
 }
 // Assumptions that move the result but are not modelled; listed instead of adding unsupported coefficients.
-function limitsFold(m, g, L) {
+function limitItems(m, g, L) {
   const items = [
     `<b>첫 요청과 캐시 재사용:</b> 대화 앞부분은 프리픽스 캐시에 있다고 보고, 출력 1토큰당 캐시되지 않은 새 입력 ${E.opt.prefillRatio}토큰만 처리한다고 고정했습니다. 긴 작업을 처음 읽는 첫 요청, 캐시가 맞지 않는 요청, 요청이 몰릴 때 줄 서는 시간은 계산하지 않으므로 첫 토큰 대기시간(TTFT)은 이 계산기로 예측할 수 없습니다.`,
     `<b>투기적 디코딩:</b> MTP, EAGLE 같은 방식은 넣지 않았습니다. 켜면 속도가 오를 수 있지만 얼마나 오르는지는 작업 패턴에 따라 달라 실측으로 확인해야 합니다.`,
@@ -1571,7 +1619,15 @@ function limitsFold(m, g, L) {
   ];
   if (m.moe) items.push(`<b>MoE 전문가 선택:</b> 요청들이 전문가를 고르게 고른다고 보고, 동시 요청 수에 따라 읽어야 하는 전문가 비율을 계산했습니다. 실제 선택이 한쪽으로 몰리면 속도가 달라집니다.`);
   items.push(`<b>Bob 실제 부하:</b> 이 구성을 Bob 작업으로 측정한 값은 없습니다. 속도 계수는 vLLM 레시피에 공개된 Qwen 계열 실측 10건에 맞췄고, 대부분 요청 1건, 최대 32K 토큰 조건입니다.`);
+  return items;
+}
+function limitsFold(m, g, L) {
+  const items = limitItems(m, g, L);
   return fold("u-limits", "계산에 넣지 않은 것", "첫 요청 대기시간, 캐시, 배치 설정, 통신", `<div class="prose"><ul>${items.map(x => `<li>${x}</li>`).join("")}</ul></div>`);
+}
+function detailSay(r, html) {
+  const c = S.cond, ar = altRatio(), b = x => (html ? `<b>${x}</b>` : x);
+  return r.slaRaw === 0 ? `이 구성은 요청 1건만 처리해도 초당 ${c.tps}토큰이 안 나옵니다.` : `이 구성은 요청 ${b(`${fmt(r.sla)}건`)}을 동시에, 요청당 초당 ${c.tps}토큰 이상으로 처리한다고 봅니다(실제 코딩 에이전트 부하를 감안한 값). 피크 시간에 개발자의 ${pct()}%가 동시에 Bob을 쓴다고 보면 ${b(`약 ${fmt(r.devs)}명`)}이 쓸 수 있습니다(${Math.round(ar * 100)}%로 보면 약 ${fmt(Math.floor(r.sla / ar))}명).`;
 }
 // Detail copy text: every assumption that shapes the number travels with it.
 function scText2(r) {
@@ -1619,7 +1675,7 @@ function renderDetail() {
     const meets = r.sla >= T, dp = dpUse(m) !== "none" ? dpHint(d) : null; E.opt.attnDP = c.dp && dpUse(m) !== "none"; const req = E.requiredGpus(m, v, g, T, r.ctx, c.kv, c.tps);
     const status = r.slaRaw === 0 ? chip("요청 1건도 너무 느림", "bad") : meets ? chip(`가정 기준 ${fmt(c.devs)}명 충족`, "good") : chip(`가정 기준 ${fmt(c.devs)}명 부족`, "warn");
     const pl = E.placement(g, r.n, L), tpsPlan = E.tpsPerUser(m, v, g, L.tp, Math.max(1, Math.ceil(r.sla / L.replicas)), r.ctx, c.kv), ar = altRatio();
-    const say = r.slaRaw === 0 ? `이 구성은 요청 1건만 처리해도 초당 ${c.tps}토큰이 안 나옵니다.` : `이 구성은 요청 <b>${fmt(r.sla)}건</b>을 동시에, 요청당 초당 ${c.tps}토큰 이상으로 처리한다고 봅니다(실제 코딩 에이전트 부하를 감안한 값). 피크 시간에 개발자의 ${pct()}%가 동시에 Bob을 쓴다고 보면 <b>약 ${fmt(r.devs)}명</b>이 쓸 수 있습니다(${Math.round(ar * 100)}%로 보면 약 ${fmt(Math.floor(r.sla / ar))}명).`;
+    const say = detailSay(r, true);
     const notes = [];
     if (!meets && req.n) notes.push(`<div class="note warn"><span class="ico">!</span><div>개발자 ${fmt(c.devs)}명을 받으려면 지금 가정으로 <b>${esc(short(g))} ${req.n}장</b>(${placeTxt(req)})이 필요합니다. <button type="button" class="btn sm ghost" data-act="setn" data-n="${req.n}">${req.n}장으로 바꾸기</button></div></div>`);
     if (!meets && !req.n) notes.push(`<div class="note warn"><span class="ico">!</span><div>이 GPU로는 64장까지 늘려도 개발자 ${fmt(c.devs)}명을 받기 어렵습니다.</div></div>`);
@@ -1653,7 +1709,7 @@ function renderDetail() {
         ${derateFold()}
         <div class="sec-title"><h3>주요 근거</h3></div><div class="keysrc">${bp.keyLinks}</div>
         <div class="sec-title"><h3>참고할 점</h3></div><div class="prose"><ul>${bp.caveats.slice(0, 4).map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>
-        <div class="btns"><button type="button" class="btn primary" data-act="cmp" ${scAttrs(d)}>비교함에 담기</button><button type="button" class="btn" id="detail-copy">요약 복사</button></div><div id="detail-copyhost"></div>
+        <div class="btns"><button type="button" class="btn primary" data-act="cmp" ${scAttrs(d)}>비교함에 담기</button><button type="button" class="btn" id="detail-copy">요약 복사</button>${exportBar()}</div><div id="detail-copyhost"></div>
       </div>
       <div class="sec-title"><h3>더 자세히</h3><span class="aside">속도, 메모리, 단계별 계산식</span></div>
       ${fold("u-speed", "동시 요청 수에 따른 속도", "요청당 속도 그래프", `<div class="chart" id="detail-chart"></div><p class="explain">동시 요청이 늘수록 요청당 속도가 떨어집니다. 최저선(${c.tps} tok/s) 위에 있는 가장 오른쪽 점이 받을 수 있는 한도이고, 선의 끝은 GPU 메모리가 다 차는 지점입니다.</p>`)}
@@ -1676,7 +1732,8 @@ function renderDetail() {
 }
 
 // ---------- fit (가진 GPU -> 모델)
-function renderFit() {
+// Own-GPU view numbers, shared by the screen and the file export.
+function fitModel() {
   const f = S.fit, g = G[f.gid], c = S.cond, T = target();
   E.opt.attnDP = c.dp;
   const fits = [], misses = [];
@@ -1705,6 +1762,10 @@ function renderFit() {
   misses.sort((a, b) => (a.smallest ? a.smallest.mg : 999) - (b.smallest ? b.smallest.mg : 999));
   const okCount = fits.filter(x => eff(x.L.sla_sessions) >= T).length;
   const off = fits.filter(x => x.m.ibm === "official");
+  return { f, g, c, T, fits, misses, okCount, off };
+}
+function renderFit() {
+  const { f, g, c, T, fits, misses, okCount, off } = fitModel();
   let lastGrp = null;
   const rows = fits.map(x => {
     const sc = { mid: x.m.id, vkey: x.v.key, gid: g.id, n: f.n }, meets = eff(x.L.sla_sessions) >= T, cx = pv(x.m.id, "aa_coding");
@@ -1733,6 +1794,7 @@ function renderFit() {
     <div class="card">
       <div class="sec-title"><h3>쓸 수 있는 모델</h3><span class="aside">행을 누르면 자세한 계산과 근거</span></div>
       ${fits.length ? `<div class="tbl-wrap"><table class="data gtable"><thead><tr><th>모델</th><th class="n">쓸 수 있는 개발자</th><th>${fmt(c.devs)}명 목표</th><th>${term("aa_coding", "코딩 지수")}</th><th class="hm"></th></tr></thead><tbody>${rows}</tbody></table></div>` : `<div class="empty">이 장 수로 올릴 수 있는 모델이 없습니다. 장 수를 늘려 보세요.</div>`}
+      <div class="btns">${exportBar()}</div>
     </div>
     ${misses.length ? fold("fit-miss", `GPU를 늘리면 쓸 수 있는 모델 ${misses.length}종`, `${esc(short(g))} 기준 필요한 장 수`, `<div class="tbl-wrap"><table class="data"><thead><tr><th>모델</th><th>지원</th><th class="n">필요한 장 수</th><th>압축 방식</th></tr></thead><tbody>${missRows}</tbody></table></div>`) : ""}`;
 }
@@ -1805,7 +1867,7 @@ function renderCompare() {
   host.innerHTML = head + `
     <div class="setup">${devsStep(1)}${assumeFold()}</div>
     ${S.compare.some(x => x.ex) ? `<div class="note"><span class="ico">i</span><div>IBM 공식 지원 모델 예시 3개가 들어 있습니다. '빼기'로 지울 수 있습니다.</div></div>` : ""}
-    <div class="tbl-tools"><span class="btns"><button type="button" class="btn sm" id="cmp-copy">비교 요약 복사</button><button type="button" class="btn sm ghost" id="cmp-clear">모두 지우기</button></span><button type="button" class="btn sm" data-act="adv">${adv ? "간단히 보기" : "자세한 항목 보기"}</button></div><div id="cmp-copyhost"></div>
+    <div class="tbl-tools"><span class="btns"><button type="button" class="btn sm" id="cmp-copy">비교 요약 복사</button><button type="button" class="btn sm ghost" id="cmp-clear">모두 지우기</button>${exportBar()}</span><button type="button" class="btn sm" data-act="adv">${adv ? "간단히 보기" : "자세한 항목 보기"}</button></div><div id="cmp-copyhost"></div>
     <div class="tbl-wrap${adv ? " show-adv" : ""}"><table class="data cmp">
       <thead><tr><th></th>${rs.map((x, i) => `<th>구성 ${i + 1}${x.sc.ex ? " " + chip("예시", "line") : ""}</th>`).join("")}</tr></thead>
       <tbody>
@@ -1951,6 +2013,385 @@ let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTime
   if (view === "perf" && OPEN.has("p-scatter")) drawPerfChart();
   if (view === "detail" && OPEN.has("u-speed")) { const r = calc(S.detail); const h = $("detail-chart"); if (r.best && h) speedChart(h, r); }
 }, 150); });
+
+// ---------- export (Excel / PowerPoint / PDF)
+// Each screen builds one plain report model; three renderers turn it into a file.
+// The Excel and PowerPoint libraries load from jsDelivr only when someone first exports.
+const XLIB = {
+  xlsx: { g: "ExcelJS", url: "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js" },
+  pptx: { g: "PptxGenJS", url: "https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js" },
+};
+const X_VIEWS = { need: true, fit: true, detail: true, compare: true };
+const X_NOTES = [
+  "vLLM 기준 계산이며, Bob 실제 부하로 측정한 값이 아닙니다.",
+  "가드레일 모델(gpt-oss-20b)과 장애 대비 여분 GPU는 별도입니다.",
+  "GPU 단가는 들어 있지 않습니다. 장 수가 같아도 GPU 종류에 따라 비용 차이가 큽니다.",
+  "IBM 공식 견적이나 성능 보증이 아닌 IBM 내부 참고용 추정입니다.",
+];
+function exportBar() {
+  return `<span class="xport" role="group" aria-label="파일로 내보내기"><span class="xl">파일로 내보내기</span><button type="button" class="btn sm" data-export="xlsx">Excel</button><button type="button" class="btn sm" data-export="pptx">PowerPoint</button><button type="button" class="btn sm" data-export="pdf">PDF</button></span>`;
+}
+const xStamp = () => { const d = new Date(), p = n => String(n).padStart(2, "0"); return { day: `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`, time: `${p(d.getHours())}:${p(d.getMinutes())}`, compact: `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` }; };
+const xName = parts => parts.filter(Boolean).join("_").replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, "-");
+function xPlain(html) {
+  const d = document.createElement("div"); d.innerHTML = html;
+  d.querySelectorAll(".ico, button").forEach(x => x.remove());
+  return d.textContent.replace(/\s+/g, " ").trim();
+}
+const xr = x => (x == null || !isFinite(x) ? null : Math.round(x));
+function xConds(withMode) {
+  const c = S.cond, rows = [
+    ["개발자 수", `${fmt(c.devs)}명`],
+    ["피크 동시 사용률", `${pct()}% (동시 요청 목표 ${fmt(target())}건)`],
+    ["작업 규모", `${ctxWord(c.ctx)} · ${kfmt(c.ctx)} 토큰`],
+    ["KV 캐시 정밀도", c.kv.toUpperCase()],
+    ["요청당 속도 최저선", `초당 ${c.tps}토큰`],
+  ];
+  if (withMode) rows.push(["압축 방식 선택", S.main.qmode === "min" ? "인원이 가장 많은 방식" : "FP8 우선"]);
+  if (c.dp) rows.push(["어텐션 데이터 병렬", "켬"]);
+  return rows;
+}
+function xModelNotes(m) {
+  const out = [m.ibm === "official" ? "IBM 공식 지원 모델입니다. IBM 공식 프로파일(권장 구성과 동시 요청 범위)을 먼저 확인하세요." : IBM_HELP[m.ibm]];
+  if (bobShort(m)) out.push(xPlain(bobCtxNote(m)));
+  if (dpOnNote(m)) out.push(xPlain(dpOnNote(m)));
+  return out;
+}
+// one GPU's answer for the GPU-count view, as table cells
+function xPlanRow(m, g, p, ctx) {
+  const c = S.cond;
+  if (p.sup === "N") return [short(g), g.mem_gb, "-", null, null, null, "-", null, null, null, null, null, "이 GPU에서 돌릴 수 있는 압축 형식 없음"];
+  const q = p.req, L = q.layout, notes = [];
+  if (p.sup === "P") notes.push("변환 동작(느릴 수 있음)");
+  if (!q.n) notes.push("64장 안에서 목표 미달");
+  if (L && L.tp > g.per_node) notes.push(`서버 간 TP${L.tp}(고속 네트워크 필요)`);
+  let sla = null, devs = null, tPlan = null, t1 = null;
+  if (L) {
+    E.opt.attnDP = c.dp && dpUse(m) !== "none";
+    sla = eff(L.sla_sessions); devs = devsOf(sla); t1 = L.tps_at_1;
+    tPlan = E.tpsPerUser(m, p.v, g, L.tp, Math.max(1, Math.ceil(sla / L.replicas)), ctx, c.kv);
+  }
+  return [short(g), g.mem_gb, shortPrec(p.v), q.n || null, q.n ? q.servers : null, q.n ? q.buy : null, L ? `TP${L.tp} × ${L.replicas}` : "-", sla, devs, xr(tPlan), xr(t1), p.minG || null, notes.join(", ")];
+}
+const X_PLAN_COLS = [
+  { h: "GPU", w: 16 }, { h: "메모리(GB)", w: 10, num: true, ppt: false }, { h: "압축 방식", w: 11 },
+  { h: "필요 장 수", w: 10, num: true }, { h: "서버(대)", w: 9, num: true }, { h: "꽉 채우면(장)", w: 12, num: true },
+  { h: "묶는 방식", w: 11, ppt: false }, { h: "계획용 동시 처리(건)", w: 14, num: true, ppt: false }, { h: "쓸 수 있는 개발자(명)", w: 15, num: true },
+  { h: "계획 부하 속도(tok/s)", w: 15, num: true }, { h: "요청 1건 속도(tok/s)", w: 15, num: true, ppt: false },
+  { h: "모델만 올리면 최소(장)", w: 15, num: true, ppt: false }, { h: "비고", w: 28 },
+];
+
+function reportNeed() {
+  const mm = mainModel(), { m, c, ctxEff, rows } = mm, t = mm.text(false), st = xStamp();
+  const kpis = MAIN_GPUS.map(id => mm.byId(id)).map(({ g, p }) => {
+    if (p.sup === "N") return { label: `${short(g)} ${g.mem_gb}GB`, value: "-", unit: "", cap: "지원하는 압축 형식 없음" };
+    const q = p.req, L = q.layout;
+    if (!q.n) return { label: `${short(g)} ${g.mem_gb}GB`, value: "64+", unit: "장", cap: "64장 안에서 목표 미달" };
+    return { label: `${short(g)} ${g.mem_gb}GB`, value: String(q.n), unit: "장", cap: `${placeTxt(q)} · 약 ${fmt(devsOf(eff(L.sla_sessions)))}명 · ${shortPrec(p.v)}` };
+  });
+  return {
+    title: "Bob 온프렘 GPU 산정", subtitle: `${m.name} · 개발자 ${fmt(c.devs)}명`,
+    file: xName(["Bob_GPU산정", mshort(m), `${c.devs}명`, st.compact]),
+    headline: [t.lead, t.sub], kpis,
+    conds: [["모델", `${m.name} (${IBM_LABEL[m.ibm]})`]].concat(xConds(true)),
+    tables: [{ title: "GPU별 필요한 장 수", sheet: "GPU별 산정", cols: X_PLAN_COLS, rows: rows.map(r => xPlanRow(m, r.g, r.p, ctxEff)),
+      note: "필요 장 수는 이 모델을 실제로 돌리는 GPU 수입니다. 8장짜리 서버로 사면 '꽉 채우면' 장 수만큼 구매합니다. 계획용 동시 처리는 이론 최대치의 25%로 잡은 값입니다." }],
+    notes: xModelNotes(m).concat(X_NOTES),
+  };
+}
+
+function reportDetail() {
+  const d = S.detail, m = M[d.mid], r = calc(d), c = S.cond, T = target(), g = r.g, L = r.best, st = xStamp(), ar = altRatio();
+  const base = {
+    title: "Bob 온프렘 GPU 산정 · 구성 상세", subtitle: `${m.name} (${shortPrec(r.v)}) · ${short(g)} ${r.n}장`,
+    file: xName(["Bob_GPU산정_상세", mshort(m), `${short(g)}x${r.n}`, st.compact]),
+    conds: [["모델", `${m.name} (${IBM_LABEL[m.ibm]})`], ["압축 방식", r.v.label], ["GPU", `${g.name} ${r.n}장 (서버 ${r.servers}대)`]].concat(xConds(false)),
+    tables: [], notes: [],
+  };
+  if (r.sup === "N") return Object.assign(base, { headline: [`${short(g)}는 ${PREC[r.v.precision]} 형식을 지원하지 않습니다.`], notes: X_NOTES.slice() });
+  if (!L) return Object.assign(base, { headline: [`${short(g)} ${r.n}장으로는 이 모델을 올릴 수 없습니다. 최소 ${r.minG ? r.minG + "장" : "32장 넘게"}이 필요합니다.`], notes: xModelNotes(m).concat(X_NOTES) });
+  const bp = basisParts(r);
+  E.opt.attnDP = c.dp && dpUse(m) !== "none";
+  const pl = E.placement(g, r.n, L), tPlan = E.tpsPerUser(m, r.v, g, L.tp, Math.max(1, Math.ceil(r.sla / L.replicas)), r.ctx, c.kv);
+  const req = E.requiredGpus(m, r.v, g, T, r.ctx, c.kv, c.tps), meets = r.sla >= T;
+  const head = [detailSay(r, false), meets ? `입력한 가정에서 개발자 ${fmt(c.devs)}명 목표를 충족합니다.` : req.n ? `개발자 ${fmt(c.devs)}명을 받으려면 지금 가정으로 ${short(g)} ${req.n}장(${placeTxt(req)})이 필요합니다.` : `이 GPU로는 64장까지 늘려도 개발자 ${fmt(c.devs)}명을 받기 어렵습니다.`];
+  const kpis = [
+    { label: "쓸 수 있는 개발자", value: fmt(r.devs), unit: "명", cap: `피크 동시 사용률 ${pct()}% 가정 · ${Math.round(ar * 100)}%면 약 ${fmt(Math.floor(r.sla / ar))}명` },
+    { label: "계획용 동시 처리", value: fmt(r.sla), unit: "건", cap: `목표 ${fmt(T)}건 (개발자 ${fmt(c.devs)}명 × ${pct()}%)` },
+    { label: "계획 부하에서 속도", value: tps(tPlan), unit: "tok/s", cap: `${fmt(r.sla)}건 동시 처리 시 요청당 · 요청 1건만 처리하면 ${tps(L.tps_at_1)} tok/s` },
+    { label: "서버", value: String(r.servers), unit: "대", cap: `GPU ${r.n}장 사용${pl.buy > r.n ? ` · 꽉 채우면 ${pl.buy}장` : ""} · 모델만 올리면 최소 ${r.minG ? r.minG + "장" : "32장 넘게"}` },
+  ];
+  const ctxRows = [32768, 65536, 131072, BOB_CTX].map(cx => { const rr = calc(d, { ctx: cx }); return [ctxWord(cx), kfmt(Math.min(cx, m.ctx_serving)), rr.best ? rr.devs : null, rr.best ? rr.sla : null, rr.best ? Math.round(rr.best.session_gb * 100) / 100 : null]; });
+  E.opt.attnDP = c.dp && dpUse(m) !== "none";
+  const layRows = E.layoutsFor(m, r.v, g, r.n, r.ctx, c.kv, c.tps).map(x => x.fits
+    ? [`TP${x.tp} × ${x.replicas}${x.tp === L.tp ? " (선택)" : ""}`, Math.round(x.kv_pool_gb), Math.round(x.session_gb * 100) / 100, x.mem_sessions, x.sla_sessions, xr(x.tps_at_1)]
+    : [`TP${x.tp} × ${x.replicas}`, null, null, null, null, null]);
+  const notes = [];
+  if (r.sup === "P") notes.push(`${short(g)}는 ${PREC[r.v.precision]}를 바로 처리하지 못해 변환해서 돌립니다. 실제 속도는 이 계산보다 낮을 수 있습니다.`);
+  if (pl.crossNode) notes.push(`서버 ${Math.ceil(L.tp / g.per_node)}대를 하나로 묶는 구성(TP${L.tp})입니다. 서버 간 고속 네트워크(InfiniBand 등)가 필요하고, 배포 도구에 따라 지원하지 않을 수 있습니다.`);
+  return Object.assign(base, {
+    headline: head, kpis,
+    tables: [
+      { title: "계산 순서", sheet: "계산 순서", cols: [{ h: "단계", w: 6, num: true }, { h: "항목", w: 26 }, { h: "값", w: 22 }, { h: "계산식", w: 70, ppt: false }],
+        rows: bp.steps.map((s, i) => [i + 1, xPlain(s.title), xPlain(String(s.val)), xPlain(String(s.formula || ""))]), pptRows: 9 },
+      { title: "작업 규모별 인원", sheet: "작업 규모별", cols: [{ h: "작업 규모", w: 14 }, { h: "토큰", w: 9 }, { h: "쓸 수 있는 개발자(명)", w: 16, num: true }, { h: "계획용 동시 처리(건)", w: 16, num: true }, { h: "요청 1건 메모리(GB)", w: 16, num: true, fmt: "0.00" }], rows: ctxRows },
+      { title: "GPU 묶는 방식별 비교", sheet: "묶는 방식", cols: [{ h: "묶는 방식", w: 16 }, { h: "KV 캐시 공간(GB)", w: 15, num: true }, { h: "요청 1건 메모리(GB)", w: 16, num: true, fmt: "0.00" }, { h: "메모리 한도(건)", w: 14, num: true }, { h: "속도 기준 한도(건)", w: 15, num: true }, { h: "요청 1건 속도(tok/s)", w: 16, num: true }], rows: layRows,
+        note: "한도는 이론 최대치이며, 계획에는 그중 25%를 넣습니다." },
+    ],
+    notes: notes.concat(xModelNotes(m), limitItems(m, g, L).map(xPlain), X_NOTES),
+  });
+}
+
+function reportFit() {
+  const { f, g, c, T, fits, misses, okCount, off } = fitModel(), st = xStamp();
+  const lead = `${short(g)} ${f.n}장에 올릴 수 있는 모델은 ${fits.length}종이고, 지금 가정으로 개발자 ${fmt(c.devs)}명 목표를 충족하는 모델은 ${okCount}종입니다.`;
+  const sub = off.length ? `IBM 공식 지원 모델은 ${off.map(x => `${mshort(x.m)} 약 ${fmt(x.devs)}명(${shortPrec(x.v)} 기준${x.alt ? `, ${shortPrec(x.alt.v)} 기준 약 ${fmt(x.alt.devs)}명` : ""})`).join(", ")}까지 쓸 수 있습니다.` : "IBM 공식 지원 모델은 이 장 수로 올릴 수 없습니다.";
+  const rows = fits.map(x => {
+    const sla = eff(x.L.sla_sessions), cx = pv(x.m.id, "aa_coding");
+    return [x.m.name, IBM_LABEL[x.m.ibm], shortPrec(x.v), x.devs, x.alt ? `${shortPrec(x.alt.v)} 기준 약 ${fmt(x.alt.devs)}명` : "", x.L.sla_sessions === 0 ? "너무 느림" : sla >= T ? "충족" : "부족", sla, `TP${x.L.tp} × ${x.L.replicas}`, xr(x.L.tps_at_1), cx ? Math.round(cx.v * 10) / 10 : null];
+  });
+  const tables = [{ title: `${short(g)} ${f.n}장으로 쓸 수 있는 모델`, sheet: "쓸 수 있는 모델", rows, pptRows: 11,
+    cols: [{ h: "모델", w: 30 }, { h: "IBM 지원", w: 14 }, { h: "압축 방식", w: 11 }, { h: "쓸 수 있는 개발자(명)", w: 15, num: true }, { h: "다른 압축 방식", w: 22, ppt: false }, { h: `${fmt(c.devs)}명 목표`, w: 11 }, { h: "계획용 동시 처리(건)", w: 14, num: true, ppt: false }, { h: "묶는 방식", w: 11, ppt: false }, { h: "요청 1건 속도(tok/s)", w: 15, num: true, ppt: false }, { h: "코딩 지수", w: 10, num: true, fmt: "0.0" }] }];
+  if (misses.length) tables.push({ title: `GPU를 늘리면 쓸 수 있는 모델 (${short(g)} 기준)`, sheet: "GPU를 늘리면", pptRows: 11,
+    cols: [{ h: "모델", w: 30 }, { h: "IBM 지원", w: 14 }, { h: "필요한 장 수(최소)", w: 15, num: true }, { h: "압축 방식", w: 22 }],
+    rows: misses.map(x => [x.m.name, IBM_LABEL[x.m.ibm], x.smallest ? x.smallest.mg : null, x.smallest ? x.smallest.v.label : "이 GPU가 바로 지원하는 형식 없음"]) });
+  return {
+    title: "Bob 온프렘 GPU 산정 · 가진 GPU로 찾기", subtitle: `${g.name} ${f.n}장 · 개발자 ${fmt(c.devs)}명 목표`,
+    file: xName(["Bob_GPU산정_가진GPU", `${short(g)}x${f.n}`, `${c.devs}명`, st.compact]),
+    headline: [lead, sub], conds: [["GPU", `${g.name} ${f.n}장`]].concat(xConds(true)), tables,
+    notes: ["코딩 지수는 Artificial Analysis 기준이며, 없는 모델은 빈칸입니다."].concat(X_NOTES),
+  };
+}
+
+function reportCompare() {
+  const st = xStamp(), T = target(), c = S.cond;
+  const rs = S.compare.map(sc => calc(sc));
+  const rows = rs.map((r, i) => {
+    let tPlan = null;
+    if (r.best) { E.opt.attnDP = c.dp && dpUse(r.m) !== "none"; tPlan = E.tpsPerUser(r.m, r.v, r.g, r.best.tp, Math.max(1, Math.ceil(r.sla / r.best.replicas)), r.ctx, c.kv); }
+    const cx = pv(r.m.id, "aa_coding"), ag = pv(r.m.id, "aa_agentic");
+    return [`구성 ${i + 1}`, r.m.name, shortPrec(r.v), IBM_LABEL[r.m.ibm], `${short(r.g)} ${r.n}장`, r.servers, r.best ? r.sla : null, r.best ? r.devs : null,
+      !r.best ? "올릴 수 없음" : r.sla >= T ? "충족" : "부족", xr(tPlan), r.best ? xr(r.best.tps_at_1) : null, r.best ? `TP${r.best.tp} × ${r.best.replicas}` : `최소 ${r.minG || ">32"}장 필요`,
+      cx ? Math.round(cx.v * 10) / 10 : null, ag ? Math.round(ag.v * 10) / 10 : null];
+  });
+  const top = rs.filter(r => r.best).sort((a, b) => b.devs - a.devs)[0];
+  return {
+    title: "Bob 온프렘 GPU 산정 · 구성 비교", subtitle: `구성 ${rs.length}개 · 개발자 ${fmt(c.devs)}명 목표`,
+    file: xName(["Bob_GPU산정_비교", `${rs.length}개`, st.compact]),
+    headline: [`구성 ${rs.length}개를 같은 조건으로 비교했습니다.${top ? ` 가장 많은 인원을 받는 구성은 ${top.m.name} · ${short(top.g)} ${top.n}장(약 ${fmt(top.devs)}명)입니다.` : ""}`],
+    conds: xConds(false),
+    tables: [{ title: "구성 비교", sheet: "구성 비교", rows, pptRows: 8,
+      cols: [{ h: "구성", w: 8 }, { h: "모델", w: 28 }, { h: "압축 방식", w: 11 }, { h: "IBM 지원", w: 14, ppt: false }, { h: "GPU", w: 14 }, { h: "서버(대)", w: 9, num: true },
+        { h: "계획용 동시 처리(건)", w: 14, num: true, ppt: false }, { h: "쓸 수 있는 개발자(명)", w: 15, num: true }, { h: `${fmt(c.devs)}명 목표`, w: 11 },
+        { h: "계획 부하 속도(tok/s)", w: 15, num: true }, { h: "요청 1건 속도(tok/s)", w: 15, num: true, ppt: false }, { h: "묶는 방식", w: 14, ppt: false },
+        { h: "코딩 지수", w: 10, num: true, fmt: "0.0", ppt: false }, { h: "에이전트 지수", w: 11, num: true, fmt: "0.0", ppt: false }] }],
+    notes: X_NOTES.slice(),
+  };
+}
+const xReport = () => ({ need: reportNeed, fit: reportFit, detail: reportDetail, compare: reportCompare })[view]();
+
+// ---------- file plumbing
+const xLoading = {};
+function xLib(k) {
+  const L = XLIB[k];
+  if (window[L.g]) return Promise.resolve(window[L.g]);
+  if (!xLoading[k]) xLoading[k] = new Promise((res, rej) => {
+    const s = document.createElement("script"); s.src = L.url; s.async = true;
+    s.onload = () => (window[L.g] ? res(window[L.g]) : rej(new Error("lib")));
+    s.onerror = () => { delete xLoading[k]; s.remove(); rej(new Error("lib")); };
+    document.head.appendChild(s);
+  });
+  return xLoading[k];
+}
+// Inside claude.ai the frame cannot download by itself, so the platform's save dialog is used there;
+// any other copy of the page (Cloudflare, a saved file) saves through a normal link.
+const xDownloads = window.claude && typeof window.claude.use === "function" ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
+async function xSave(blob, name) {
+  const dl = await xDownloads;
+  if (dl) {
+    try { await dl.save({ filename: name, data: blob }); return true; }
+    catch (e) { if (e && e.code === "declined") return false; throw e; }
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+  return true;
+}
+const xCellText = v => (v == null || v === "" ? "-" : typeof v === "number" ? fmt(v, Number.isInteger(v) ? 0 : 2) : String(v));
+// width of a string in Excel "0" units (Hangul and other wide characters count about double)
+const xWidth = s => [...String(s)].reduce((a, ch) => a + (ch.charCodeAt(0) > 0x2e80 ? 1.9 : 1), 0);
+
+// ---------- Excel
+async function toXlsx(rep) {
+  const XL = await xLib("xlsx"), st = xStamp();
+  const wb = new XL.Workbook(); wb.creator = "Bob 온프렘 GPU 산정기"; wb.created = new Date();
+  const C = { ink: "FF131720", mut: "FF687284", acc: "FF2453C9", soft: "FFE6ECFA", line: "FFDBE0E7", fill2: "FFF4F6F9" };
+  const F = (o = {}) => Object.assign({ name: "맑은 고딕", size: 10, color: { argb: C.ink } }, o);
+  const thin = { style: "thin", color: { argb: C.line } };
+  // summary sheet
+  const ws = wb.addWorksheet("요약", { views: [{ showGridLines: false }], pageSetup: { orientation: "portrait", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 } });
+  ws.getColumn(1).width = 24; ws.getColumn(2).width = 96;
+  let n = 0;
+  const line = (a, b, font, h) => { n++; const row = ws.getRow(n); row.getCell(1).value = a; if (b !== undefined) row.getCell(2).value = b; else ws.mergeCells(n, 1, n, 2); row.font = font || F(); if (h) row.height = h; row.alignment = { vertical: "top", wrapText: true }; return row; };
+  const wrapH = (s, w) => Math.max(18, Math.ceil(xWidth(s) / w) * 15 + 4);
+  line(rep.title, undefined, F({ size: 16, bold: true }), 26);
+  line(rep.subtitle, undefined, F({ size: 12, color: { argb: C.acc } }), 20);
+  line(`만든 날 ${st.day} ${st.time} · 데이터 기준 ${D.asof} · IBM 내부 참고용`, undefined, F({ size: 9, color: { argb: C.mut } }));
+  n++;
+  const sect = t => { const row = line(t, undefined, F({ size: 11, bold: true, color: { argb: C.acc } }), 20); row.getCell(1).border = { bottom: { style: "thin", color: { argb: C.acc } } }; };
+  sect("결론");
+  rep.headline.forEach((h, i) => line(h, undefined, F({ size: i ? 10 : 11, bold: !i }), wrapH(h, 118)));
+  n++;
+  if (rep.kpis) {
+    sect("핵심 수치");
+    rep.kpis.forEach(k => { const row = line(k.label, `${k.value}${k.unit ? " " + k.unit : ""}  ·  ${k.cap}`); row.getCell(1).font = F({ bold: true }); row.getCell(1).border = { bottom: thin }; row.getCell(2).border = { bottom: thin }; });
+    n++;
+  }
+  sect("계산 조건");
+  rep.conds.forEach(([k, v]) => { const row = line(k, v); row.getCell(1).font = F({ color: { argb: C.mut } }); row.getCell(1).border = { bottom: thin }; row.getCell(2).border = { bottom: thin }; });
+  n++;
+  if (rep.tables.length) { sect("표"); rep.tables.forEach(t => line(`'${t.sheet}' 시트: ${t.title}`, undefined, F({ color: { argb: C.mut } }))); n++; }
+  sect("참고");
+  rep.notes.forEach(t => line(`• ${t}`, undefined, F(), wrapH(t, 124)));
+  // one sheet per table
+  rep.tables.forEach(t => {
+    const s2 = wb.addWorksheet(t.sheet.slice(0, 31), { views: [{ state: "frozen", ySplit: 3, showGridLines: false }], pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 } });
+    t.cols.forEach((col, i) => { s2.getColumn(i + 1).width = col.w; });
+    const last = t.cols.length;
+    s2.getRow(1).getCell(1).value = t.title; s2.mergeCells(1, 1, 1, last); s2.getRow(1).font = F({ size: 13, bold: true }); s2.getRow(1).height = 22;
+    s2.getRow(2).getCell(1).value = `${rep.subtitle} · ${rep.conds.filter(([k]) => !["모델", "GPU", "압축 방식", "개발자 수"].includes(k)).map(([k, v]) => `${k} ${v}`).join(" · ")}`;
+    s2.mergeCells(2, 1, 2, last); s2.getRow(2).font = F({ size: 9, color: { argb: C.mut } }); s2.getRow(2).alignment = { wrapText: true, vertical: "top" }; s2.getRow(2).height = 28;
+    const hr = s2.getRow(3);
+    t.cols.forEach((col, i) => { const cell = hr.getCell(i + 1); cell.value = col.h; cell.font = F({ bold: true }); cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: C.soft } }; cell.border = { top: thin, bottom: { style: "thin", color: { argb: C.acc } } }; cell.alignment = { vertical: "middle", horizontal: col.num ? "right" : "left", wrapText: true }; });
+    hr.height = 30;
+    t.rows.forEach((vals, ri) => {
+      const row = s2.getRow(4 + ri);
+      vals.forEach((v, ci) => {
+        const col = t.cols[ci], cell = row.getCell(ci + 1);
+        cell.value = v == null || v === "" ? (col.num ? null : "") : v;
+        if (v == null && col.num) cell.value = "-";
+        cell.font = F(); cell.border = { bottom: thin };
+        cell.alignment = { vertical: "top", horizontal: col.num ? "right" : "left", wrapText: !col.num };
+        if (col.num && typeof v === "number") cell.numFmt = col.fmt || "#,##0";
+        if (ri % 2) cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: C.fill2 } };
+      });
+      const tall = Math.max(...vals.map((v, ci) => (t.cols[ci].num || v == null ? 1 : Math.ceil(xWidth(v) / Math.max(4, t.cols[ci].w - 1)))));
+      row.height = Math.max(18, tall * 14 + 4);
+    });
+    s2.autoFilter = { from: { row: 3, column: 1 }, to: { row: 3 + t.rows.length, column: last } };
+    if (t.note) { const r2 = 5 + t.rows.length; s2.getRow(r2).getCell(1).value = t.note; s2.mergeCells(r2, 1, r2, last); s2.getRow(r2).font = F({ size: 9, color: { argb: C.mut } }); s2.getRow(r2).alignment = { wrapText: true, vertical: "top" }; s2.getRow(r2).height = 30; }
+  });
+  const buf = await wb.xlsx.writeBuffer();
+  return xSave(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), rep.file + ".xlsx");
+}
+
+// ---------- PowerPoint
+async function toPptx(rep) {
+  const PG = await xLib("pptx"), st = xStamp();
+  const P = new PG(); P.layout = "LAYOUT_WIDE"; P.author = "Bob 온프렘 GPU 산정기"; P.title = rep.title;
+  const FF = "맑은 고딕", INK = "131720", MUT = "687284", ACC = "2453C9", SOFT = "E6ECFA", LINE = "DBE0E7", W = 13.333;
+  P.defineSlideMaster({
+    title: "BASE", background: { color: "FFFFFF" },
+    objects: [
+      { rect: { x: 0, y: 0, w: W, h: 0.1, fill: { color: ACC } } },
+      { text: { text: `IBM 내부 참고용 · vLLM 기준 계산이며 Bob 실제 부하로 측정한 값이 아닙니다 · ${st.day}`, options: { x: 0.5, y: 7.02, w: 11.2, h: 0.3, fontFace: FF, fontSize: 9, color: MUT } } },
+    ],
+    slideNumber: { x: 12.3, y: 7.02, w: 0.6, h: 0.3, fontFace: FF, fontSize: 9, color: MUT, align: "right" },
+  });
+  const T = (s, text, o) => s.addText(text, Object.assign({ fontFace: FF, color: INK, margin: 0, valign: "top" }, o));
+  const head = (s, t, sub) => { T(s, t, { x: 0.5, y: 0.35, w: 12.3, h: 0.55, fontSize: 24, bold: true }); if (sub) T(s, sub, { x: 0.5, y: 0.92, w: 12.3, h: 0.35, fontSize: 12, color: MUT }); };
+  // cover
+  let s = P.addSlide({ masterName: "BASE" });
+  T(s, "IBM 내부 참고용 · Bob 자체 호스팅", { x: 0.8, y: 2.0, w: 11.7, h: 0.4, fontSize: 14, color: MUT });
+  T(s, rep.title, { x: 0.8, y: 2.45, w: 11.7, h: 0.9, fontSize: 34, bold: true });
+  T(s, rep.subtitle, { x: 0.8, y: 3.4, w: 11.7, h: 0.6, fontSize: 20, color: ACC });
+  T(s, `만든 날 ${st.day} · 데이터 기준 ${D.asof}`, { x: 0.8, y: 4.15, w: 11.7, h: 0.4, fontSize: 12, color: MUT });
+  // summary: answer, key numbers, conditions
+  s = P.addSlide({ masterName: "BASE" }); head(s, "요약", rep.subtitle);
+  T(s, rep.headline.map((h, i) => ({ text: h, options: { fontSize: i ? 13 : 17, bold: !i, color: i ? MUT : INK, breakLine: true, paraSpaceAfter: 6 } })), { x: 0.5, y: 1.45, w: 12.3, h: 1.5, fit: "shrink" });
+  let y = 3.1;
+  if (rep.kpis) {
+    const k = rep.kpis.length, gap = 0.2, bw = (12.3 - gap * (k - 1)) / k;
+    rep.kpis.forEach((kp, i) => {
+      const x = 0.5 + i * (bw + gap);
+      s.addShape(P.ShapeType.rect, { x, y, w: bw, h: 1.55, fill: { color: "F6F8FB" }, line: { color: LINE, width: 0.75 } });
+      T(s, kp.label, { x: x + 0.18, y: y + 0.14, w: bw - 0.36, h: 0.3, fontSize: 11, color: MUT });
+      T(s, [{ text: kp.value, options: { fontSize: 28, bold: true } }, { text: kp.unit ? " " + kp.unit : "", options: { fontSize: 13, color: MUT } }], { x: x + 0.18, y: y + 0.45, w: bw - 0.36, h: 0.55 });
+      T(s, kp.cap, { x: x + 0.18, y: y + 1.0, w: bw - 0.36, h: 0.48, fontSize: 9.5, color: MUT, fit: "shrink" });
+    });
+    y += 1.8;
+  }
+  const pairs = []; for (let i = 0; i < rep.conds.length; i += 2) pairs.push(rep.conds.slice(i, i + 2));
+  const cell = (t, o) => ({ text: t, options: Object.assign({ fontFace: FF, fontSize: 10.5, color: INK, valign: "middle", margin: [2, 6, 2, 6] }, o) });
+  s.addTable(pairs.map(p => [cell(p[0][0], { color: MUT }), cell(p[0][1]), cell(p[1] ? p[1][0] : "", { color: MUT }), cell(p[1] ? p[1][1] : "")]),
+    { x: 0.5, y, w: 12.3, colW: [1.9, 4.25, 1.9, 4.25], rowH: 0.32, border: { type: "solid", pt: 0.5, color: LINE } });
+  // tables, split across slides when long
+  rep.tables.forEach(t => {
+    const keep = t.cols.map((c, i) => (c.ppt === false ? -1 : i)).filter(i => i >= 0), per = t.pptRows || 12;
+    const tw = keep.reduce((a, i) => a + t.cols[i].w, 0), colW = keep.map(i => 12.3 * t.cols[i].w / tw);
+    const pages = Math.max(1, Math.ceil(t.rows.length / per));
+    for (let pg = 0; pg < pages; pg++) {
+      const sl = P.addSlide({ masterName: "BASE" });
+      head(sl, t.title + (pages > 1 ? ` (${pg + 1}/${pages})` : ""), rep.subtitle);
+      const hdr = keep.map(i => cell(t.cols[i].h, { bold: true, fill: { color: SOFT }, align: t.cols[i].num ? "right" : "left", fontSize: 10 }));
+      const body = t.rows.slice(pg * per, pg * per + per).map(vals => keep.map(i => cell(xCellText(vals[i]), { align: t.cols[i].num ? "right" : "left", fontSize: 10.5 })));
+      sl.addTable([hdr].concat(body), { x: 0.5, y: 1.45, w: 12.3, colW, border: { type: "solid", pt: 0.5, color: LINE }, autoPage: false });
+      if (t.note && pg === pages - 1) T(sl, t.note, { x: 0.5, y: 6.45, w: 12.3, h: 0.45, fontSize: 10, color: MUT, fit: "shrink" });
+    }
+  });
+  // notes
+  const per = 7;
+  for (let i = 0; i < rep.notes.length; i += per) {
+    const sl = P.addSlide({ masterName: "BASE" }); head(sl, "참고할 점" + (rep.notes.length > per ? ` (${i / per + 1}/${Math.ceil(rep.notes.length / per)})` : ""), rep.subtitle);
+    T(sl, rep.notes.slice(i, i + per).map(t => ({ text: t, options: { bullet: true, breakLine: true, paraSpaceAfter: 8 } })), { x: 0.5, y: 1.5, w: 12.3, h: 5.3, fontSize: 13, fit: "shrink" });
+  }
+  const blob = await P.write({ outputType: "blob" });
+  return xSave(blob, rep.file + ".pptx");
+}
+
+// ---------- PDF: a print layout of the same report, saved from the browser's print window
+function reportHtml(rep) {
+  const st = xStamp();
+  const kp = rep.kpis ? `<div class="pr-kpis">${rep.kpis.map(k => `<div class="pr-kpi"><div class="pr-kl">${esc(k.label)}</div><div class="pr-kv">${esc(k.value)}<small>${esc(k.unit || "")}</small></div><div class="pr-kc">${esc(k.cap)}</div></div>`).join("")}</div>` : "";
+  const pairs = []; for (let i = 0; i < rep.conds.length; i += 2) pairs.push(rep.conds.slice(i, i + 2));
+  const conds = `<table class="pr-conds"><tbody>${pairs.map(p => `<tr><th>${esc(p[0][0])}</th><td>${esc(p[0][1])}</td><th>${p[1] ? esc(p[1][0]) : ""}</th><td>${p[1] ? esc(p[1][1]) : ""}</td></tr>`).join("")}</tbody></table>`;
+  const tables = rep.tables.map(t => { const tw = t.cols.reduce((a, c) => a + c.w, 0); return `<h2>${esc(t.title)}</h2><table class="pr-t"><colgroup>${t.cols.map(c => `<col style="width:${(100 * c.w / tw).toFixed(2)}%">`).join("")}</colgroup><thead><tr>${t.cols.map(c => `<th class="${c.num ? "n" : ""}">${esc(c.h)}</th>`).join("")}</tr></thead><tbody>${t.rows.map(r => `<tr>${r.map((v, i) => `<td class="${t.cols[i].num ? "n" : ""}">${esc(xCellText(v))}</td>`).join("")}</tr>`).join("")}</tbody></table>${t.note ? `<p class="pr-note">${esc(t.note)}</p>` : ""}`; }).join("");
+  return `<div class="pr">
+    <div class="pr-eye">IBM 내부 참고용 · Bob 자체 호스팅 · 만든 날 ${st.day} ${st.time} · 데이터 기준 ${esc(D.asof)}</div>
+    <h1>${esc(rep.title)}</h1><div class="pr-sub">${esc(rep.subtitle)}</div>
+    <div class="pr-lead">${rep.headline.map((h, i) => `<p class="${i ? "" : "l1"}">${esc(h)}</p>`).join("")}</div>
+    ${kp}<h2>계산 조건</h2>${conds}${tables}
+    <h2>참고할 점</h2><ul class="pr-notes">${rep.notes.map(t => `<li>${esc(t)}</li>`).join("")}</ul>
+  </div>`;
+}
+function toPdf(rep) {
+  let host = document.getElementById("print-report");
+  if (!host) { host = document.createElement("div"); host.id = "print-report"; document.body.appendChild(host); }
+  host.innerHTML = reportHtml(rep);
+  const root = document.documentElement, prevTitle = document.title;
+  root.classList.add("printing"); document.title = rep.file; // most browsers name the PDF after the page title
+  const done = () => { root.classList.remove("printing"); document.title = prevTitle; window.removeEventListener("afterprint", done); };
+  window.addEventListener("afterprint", done);
+  setTimeout(() => { try { window.print(); } catch (e) { done(); toast("이 화면에서는 인쇄 창을 열 수 없습니다"); } }, 60);
+  return true;
+}
+
+// ---------- buttons
+document.addEventListener("click", async ev => {
+  const b = ev.target.closest && ev.target.closest("[data-export]"); if (!b || b.disabled) return;
+  if (!X_VIEWS[view]) return;
+  const kind = b.dataset.export, label = b.textContent;
+  let rep;
+  try { rep = xReport(); } catch (e) { toast("내보낼 내용을 만들지 못했습니다"); return; }
+  if (kind === "pdf") { toast("인쇄 창에서 'PDF로 저장'을 고르세요"); toPdf(rep); return; }
+  b.disabled = true; b.textContent = "만드는 중…";
+  try {
+    const ok = await (kind === "xlsx" ? toXlsx(rep) : toPptx(rep));
+    if (ok) toast(`${kind === "xlsx" ? "Excel" : "PowerPoint"} 파일을 만들었습니다`);
+  } catch (e) {
+    toast(e && e.message === "lib" ? "파일 도구를 불러오지 못했습니다. 인터넷 연결을 확인하세요" : "파일을 만들지 못했습니다");
+  } finally { b.disabled = false; b.textContent = label; }
+});
 
 // ---------- init
 $("m-count").textContent = D.models.length;
